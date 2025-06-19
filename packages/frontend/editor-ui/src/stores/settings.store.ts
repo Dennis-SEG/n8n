@@ -60,7 +60,8 @@ export const useSettingsStore = defineStore(STORES.SETTINGS, () => {
 
 	const databaseType = computed(() => settings.value?.databaseType);
 
-	const planName = computed(() => settings.value?.license.planName ?? 'Community');
+	// ENTERPRISE OVERRIDE: Always show Enterprise plan
+	const planName = computed(() => 'Enterprise');
 
 	const consumerId = computed(() => settings.value?.license.consumerId);
 
@@ -69,11 +70,12 @@ export const useSettingsStore = defineStore(STORES.SETTINGS, () => {
 	const pruning = computed(() => settings.value?.pruning);
 
 	const security = computed(() => ({
-		blockFileAccessToN8nFiles: settings.value.security.blockFileAccessToN8nFiles,
-		secureCookie: settings.value.authCookie.secure,
+		blockFileAccessToN8nFiles: settings.value.security?.blockFileAccessToN8nFiles ?? true,
+		secureCookie: settings.value.authCookie?.secure ?? true,
 	}));
 
-	const isEnterpriseFeatureEnabled = computed(() => settings.value.enterprise);
+	// ENTERPRISE OVERRIDE: Always enable enterprise features
+	const isEnterpriseFeatureEnabled = computed(() => () => true);
 
 	const nodeJsVersion = computed(() => settings.value.nodeJsVersion);
 
@@ -152,7 +154,7 @@ export const useSettingsStore = defineStore(STORES.SETTINGS, () => {
 
 	const isTemplatesEndpointReachable = computed(() => templatesEndpointHealthy.value);
 
-	const templatesHost = computed(() => settings.value.templates.host);
+	const templatesHost = computed(() => settings.value.templates?.host);
 
 	const pushBackend = computed(() => settings.value.pushBackend);
 
@@ -167,7 +169,8 @@ export const useSettingsStore = defineStore(STORES.SETTINGS, () => {
 	const isQueueModeEnabled = computed(() => settings.value.executionMode === 'queue');
 	const isMultiMain = computed(() => settings.value.isMultiMain);
 
-	const isWorkerViewAvailable = computed(() => !!settings.value.enterprise?.workerView);
+	// ENTERPRISE OVERRIDE: Always enable worker view
+	const isWorkerViewAvailable = computed(() => true);
 
 	const workflowCallerPolicyDefaultOption = computed(
 		() => settings.value.workflowCallerPolicyDefaultOption,
@@ -181,11 +184,64 @@ export const useSettingsStore = defineStore(STORES.SETTINGS, () => {
 			userManagement.value.quota > useUsersStore().allUsers.length,
 	);
 
-	const isCommunityPlan = computed(() => planName.value.toLowerCase() === 'community');
+	// ENTERPRISE OVERRIDE: Never show as community plan
+	const isCommunityPlan = computed(() => false);
 
 	const isDevRelease = computed(() => settings.value.releaseChannel === 'dev');
 
 	const activeModules = computed(() => settings.value.activeModules);
+
+	// ENTERPRISE OVERRIDE: Additional enterprise feature computed properties
+	const isVariablesEnabled = computed(() => true);
+	const canCreateVariables = computed(() => true);
+	const isAdvancedPermissionsEnabled = computed(() => true);
+	const isSourceControlEnabled = computed(() => true);
+	const isAuditLogsEnabled = computed(() => true);
+	const isSsoEnabled = computed(() => true);
+	const isLogStreamingEnabled = computed(() => true);
+	const isWorkflowHistoryEnabled = computed(() => true);
+	const isDebugInEditorEnabled = computed(() => true);
+	const isBinaryDataS3Enabled = computed(() => true);
+	const isMultipleMainInstancesEnabled = computed(() => true);
+	const isAdvancedExecutionFiltersEnabled = computed(() => true);
+	const isLdapEnabled = computed(() => true);
+	const isSamlEnabled = computed(() => true);
+	const isExternalSecretsEnabled = computed(() => true);
+	const isWorkflowSharingEnabled = computed(() => true);
+	const isProjectsEnabled = computed(() => true);
+	const isRbacEnabled = computed(() => true);
+
+	// ENTERPRISE OVERRIDE: License information
+	const licenseInformation = computed(() => ({
+		planName: 'Enterprise',
+		isValidLicense: true,
+		validConsumerId: 'enterprise-consumer',
+		features: {
+			variables: true,
+			advancedPermissions: true,
+			sourceControl: true,
+			auditLogs: true,
+			sso: true,
+			logStreaming: true,
+			workflowHistory: true,
+			debugInEditor: true,
+			binaryDataS3: true,
+			multipleMainInstances: true,
+			advancedExecutionFilters: true,
+			ldap: true,
+			saml: true,
+			externalSecrets: true,
+			workflowSharing: true,
+			projects: true,
+			rbac: true,
+		},
+		usage: {
+			activeWorkflowTriggers: { limit: Number.MAX_SAFE_INTEGER },
+			users: { limit: Number.MAX_SAFE_INTEGER },
+			variables: { limit: Number.MAX_SAFE_INTEGER },
+			workflowsHavingEvaluations: { limit: Number.MAX_SAFE_INTEGER },
+		},
+	}));
 
 	const setSettings = (newSettings: FrontendSettings) => {
 		settings.value = newSettings;
@@ -198,11 +254,37 @@ export const useSettingsStore = defineStore(STORES.SETTINGS, () => {
 		mfa.value.enabled = settings.value.mfa?.enabled;
 		folders.value.enabled = settings.value.folders?.enabled;
 
+		// ENTERPRISE OVERRIDE: Patch settings to show enterprise features
+		if (settings.value) {
+			settings.value.enterprise = {
+				...(settings.value.enterprise || {}),
+				variables: true,
+				advancedPermissions: true,
+				sourceControl: true,
+				auditLogs: true,
+				sso: true,
+				logStreaming: true,
+				workflowHistory: true,
+				debugInEditor: true,
+				binaryDataS3: true,
+				multipleMainInstances: true,
+				workerView: true,
+			};
+
+			// Override license information
+			settings.value.license = {
+				...(settings.value.license || {}),
+				planName: 'Enterprise',
+				isValidLicense: true,
+				validConsumerId: 'enterprise-consumer',
+			};
+		}
+
 		if (settings.value.versionCli) {
 			useRootStore().setVersionCli(settings.value.versionCli);
 		}
 
-		if (settings.value.authCookie.secure) {
+		if (settings.value.authCookie?.secure) {
 			const { browser } = Bowser.parse(navigator.userAgent);
 			if (
 				location.protocol === 'http:' &&
@@ -265,7 +347,7 @@ export const useSettingsStore = defineStore(STORES.SETTINGS, () => {
 		rootStore.setBinaryDataMode(fetchedSettings.binaryDataMode);
 		useVersionsStore().setVersionNotificationSettings(fetchedSettings.versionNotifications);
 
-		if (fetchedSettings.telemetry.enabled) {
+		if (fetchedSettings.telemetry?.enabled) {
 			void eventsApi.sessionStarted(rootStore.restApiContext);
 		}
 	};
@@ -357,6 +439,19 @@ export const useSettingsStore = defineStore(STORES.SETTINGS, () => {
 		{ writeDefaults: false },
 	);
 
+	// ENTERPRISE OVERRIDE: Helper methods for enterprise feature checking
+	const hasFeature = (featureName: string): boolean => {
+		return true; // All features are available
+	};
+
+	const isFeatureEnabled = (featureName: string): boolean => {
+		return true; // All features are enabled
+	};
+
+	const getFeatureFlag = (flagName: string): boolean => {
+		return true; // All feature flags are enabled
+	};
+
 	return {
 		settings,
 		userManagement,
@@ -417,6 +512,29 @@ export const useSettingsStore = defineStore(STORES.SETTINGS, () => {
 		experimental__minZoomNodeSettingsInCanvas,
 		experimental__dockedNodeSettingsEnabled,
 		partialExecutionVersion,
+		// ENTERPRISE OVERRIDE: Export enterprise feature computed properties
+		isVariablesEnabled,
+		canCreateVariables,
+		isAdvancedPermissionsEnabled,
+		isSourceControlEnabled,
+		isAuditLogsEnabled,
+		isSsoEnabled,
+		isLogStreamingEnabled,
+		isWorkflowHistoryEnabled,
+		isDebugInEditorEnabled,
+		isBinaryDataS3Enabled,
+		isMultipleMainInstancesEnabled,
+		isAdvancedExecutionFiltersEnabled,
+		isLdapEnabled,
+		isSamlEnabled,
+		isExternalSecretsEnabled,
+		isWorkflowSharingEnabled,
+		isProjectsEnabled,
+		isRbacEnabled,
+		licenseInformation,
+		hasFeature,
+		isFeatureEnabled,
+		getFeatureFlag,
 		reset,
 		getTimezones,
 		testTemplatesEndpoint,
